@@ -1,7 +1,7 @@
 {
   "name": "untitled-code-generator",
   "version": "0.0.1",
-  "description": "cli tool to initialize your js project",
+  "description": "cli tool to initialize your project",
   "main": "index.js",
   "type": "module",
   "scripts": {

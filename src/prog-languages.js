@@ -1,7 +1,7 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { access, mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { ALL, BARE_METAL, ESLINT, JAVASCRIPT, MINIMAL, PRETTIER, VS_CODE } from "./keywords.js";
+import { ALL, BARE_METAL, ESLINT, JAVASCRIPT, JS_CONFIG, MINIMAL, PRETTIER, VS_CODE } from "./constants.js";
 import { editorPresets, langPresets } from "./presets.js";
 import { deepEqual } from "./util.js";
 
@@ -41,63 +41,75 @@ export class RequirementBuilder {
     this.path = path;
   }
 
-  lock = false;
+  addOnLock = false;
 
   addEditor(editor) {
-    if (lock) throw new Error("Builder is locked");
     this.editor = editor;
     return this;
   }
 
   addFlavour(flavour) {
-    if (lock) throw new Error("Builder is locked");
+    if (this.addOnLock) throw new Error("Builder is locked");
     this.flavour = flavour;
     return this;
   }
 
   addLanguage(language) {
-    if (lock) throw new Error("Builder is locked");
     this.language = language;
     return this;
   }
 
   addInstallationCategory(category) {
-    if (lock) throw new Error("Builder is locked");
     this.category = category;
     if (deepEqual(category, ALL)) {
       this.addOns.push(PRETTIER);
       this.addOns.push(ESLINT);
-      this.lock = true;
+      this.addOnLock = true;
     }
     if (deepEqual(category, MINIMAL)) {
       this.addOns.push(PRETTIER);
-      this.lock = true;
+      this.addOnLock = true;
     }
     return this;
   }
 
   addAddOns(addOn) {
-    if (lock) throw new Error("Builder is locked");
+    if (this.addOnLock) throw new Error("Builder is locked");
     if (this.addOns.find((item) => item.key === addOn.key)) throw new Error(`Cannot add ${addOn.name} again`);
     this.addOns.push(addOn);
     return this;
   }
 
   async build() {
-    const buildPath = join(__dirname, "/exp-dir"); // replace with path after testing
-    await mkdir(buildPath, { recursive: true });
+    const buildPath = join(__dirname, this.path); // replace with path after testing
+    try {
+      await access(join(buildPath, "src"));
+    } catch (error) {
+      // if buildpath does not exist
+      await mkdir(join(buildPath, "src"), { recursive: true });
+    }
+
+    // flavour
+    switch (this.flavour.key) {
+      case BARE_METAL.key:
+        await writeFile(join(buildPath, JS_CONFIG.files.main), JSON.stringify(langPresets[JAVASCRIPT.key][JS_CONFIG.key]));
+        break;
+
+      default:
+        break;
+    }
 
     // add-ons
     for (const item of this.addOns) {
       switch (item.key) {
         case PRETTIER.key:
-          await writeFile(join(buildPath, "/.prettierrc"), langPresets[JAVASCRIPT.key][PRETTIER.key].settings);
-          await writeFile(join(buildPath, "/.prettierignore"), langPresets[JAVASCRIPT.key][PRETTIER.key].ignore);
+          await writeFile(join(buildPath, PRETTIER.files.settings), JSON.stringify(langPresets[JAVASCRIPT.key][PRETTIER.key].settings));
+          await writeFile(join(buildPath, PRETTIER.files.ignore), langPresets[JAVASCRIPT.key][PRETTIER.key].ignore);
           break;
 
         case ESLINT.key:
-          await writeFile(join(buildPath, "/.eslintrc"), langPresets[JAVASCRIPT.key][ESLINT.key].settings);
-          await writeFile(join(buildPath, "/.eslintignore"), langPresets[JAVASCRIPT.key][ESLINT.key].ignore);
+          await writeFile(join(buildPath, ESLINT.files.settings), JSON.stringify(langPresets[JAVASCRIPT.key][ESLINT.key].settings));
+          await writeFile(join(buildPath, ESLINT.files.settings), langPresets[JAVASCRIPT.key][ESLINT.key].ignore);
           break;
 
         default:
@@ -109,28 +121,26 @@ export class RequirementBuilder {
     const settings = structuredClone(editorPresets[VS_CODE.key].settings);
     const extensions = structuredClone(editorPresets[VS_CODE.key].extensions);
 
-    switch (editor.key) {
+    switch (this.editor.key) {
       case VS_CODE.key:
-        const editorPath = join(__dirname, "/exp-dir/.vscode");
-        await mkdir(editorPath, { recursive: true });
+        const editorPath = join(buildPath, "./.vscode");
+        await mkdir(editorPath);
 
         if (this.addOns.find((item) => item.key === PRETTIER.key)) {
-          settings["editor.defaultFormatter"] = "esbenp.prettier-vscode";
-          extensions.push("esbenp.prettier-vscode");
+          settings["editor.defaultFormatter"] = VS_CODE.extensions[PRETTIER.key];
+          extensions.recommendations.push(VS_CODE.extensions[PRETTIER.key]);
         }
 
         if (this.addOns.find((item) => item.key === ESLINT.key)) {
-          extensions.push("dbaeumer.vscode-eslint");
+          extensions.recommendations.push(VS_CODE.extensions[ESLINT.key]);
         }
 
-        await writeFile(join(editorPath, "./settings.json"), settings);
-        await writeFile(join(editorPath, "./extensions.json"), extensions);
+        await writeFile(join(editorPath, "./settings.json"), JSON.stringify(settings));
+        await writeFile(join(editorPath, "./extensions.json"), JSON.stringify(extensions));
         break;
 
       default:
         break;
     }
-
-    // flavour
   }
 }

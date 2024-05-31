@@ -1,4 +1,5 @@
-import { ESLINT, JAVASCRIPT, PRETTIER, VS_CODE } from "./keywords.js";
+import eol from "eol";
+import { ESLINT, JAVASCRIPT, JS_CONFIG, PRETTIER, VS_CODE } from "./constants.js";
 
 export const editorPresets = {
   [VS_CODE.key]: {
@@ -27,11 +28,17 @@ export const langPresets = {
         trailingComma: "always",
         semi: true,
       },
-      ignore: [eol.auto("**/build"), eol.auto("**/dist"), eol.auto("**/node_modules")],
+      ignore: [eol.after("**/build"), eol.after("**/dist"), eol.after("**/node_modules")].join(""),
     },
     [ESLINT.key]: {
       settings: {},
-      ignore: [eol.auto("**/build"), eol.auto("**/dist"), eol.auto("**/node_modules")],
+      ignore: [eol.after("**/build"), eol.after("**/dist"), eol.after("**/node_modules")].join(""),
+    },
+    [JS_CONFIG.key]: {
+      compilerOptions: {
+        moduleResolution: "NodeNext",
+        module: "NodeNext",
+      },
     },
   },
 };
