@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { access, mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -8,40 +9,42 @@ import { deepEqual } from "./util.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-export class Common {
-  editor;
+class PackageBuilder {
+  packageJson = false;
+  git = false;
+  packageManager = {};
 
-  constructor({ editor = VS_CODE }) {
-    this.editor = editor;
+  addGit(val) {
+    this.git = val;
+    return this;
+  }
+
+  addPackageManager(manager) {
+    this.packageManager = manager;
+    return this;
+  }
+
+  addPackageJson(init) {
+    this.packageJson = init;
+    return this;
   }
 }
 
-export class Javascript extends Common {
-  Options;
-  InstallCategory;
-  AddOns;
-
-  constructor(params) {
-    super(params);
-    this.Options = [BARE_METAL];
-    this.InstallCategory = [MINIMAL, ALL];
-    this.AddOns = [PRETTIER, ESLINT];
-  }
-}
-
-export class RequirementBuilder {
+export class RequirementBuilder extends PackageBuilder {
   editor = {};
   language = {};
   category = {};
   flavour = {};
+
   addOns = [];
+  addOnLock = false;
+
   path = "";
 
   constructor(path) {
+    super();
     this.path = path;
   }
-
-  addOnLock = false;
 
   addEditor(editor) {
     this.editor = editor;
@@ -81,7 +84,7 @@ export class RequirementBuilder {
   }
 
   async build() {
-    const buildPath = join(__dirname, this.path); // replace with path after testing
+    const buildPath = join(__dirname, this.path);
     try {
       await access(join(buildPath, "src"));
     } catch (error) {
@@ -141,6 +144,16 @@ export class RequirementBuilder {
 
       default:
         break;
+    }
+
+    // npm init
+    if (this.packageJson) {
+      spawnSync("bash", ["./scripts/npm_init.sh", this.path], { stdio: "inherit" });
+    }
+
+    // git init
+    if (this.git) {
+      spawnSync("bash", ["./scripts/git_init.sh", this.path], { stdio: "inherit" });
     }
   }
 }
